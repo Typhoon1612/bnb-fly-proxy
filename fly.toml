@@ -1,0 +1,9 @@
+app = "bnb-fly-proxy"
+primary_region = "sin"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true     # <- 改成 true，让 Fly 在空闲后自动 stop
+  auto_start_machines = true    # <- 保留 true，让 HTTP 请求自动唤醒
+
