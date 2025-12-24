@@ -1,5 +1,7 @@
 import express from "express";
 import crypto from "crypto";
+import axios from "axios";
+
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -191,6 +193,8 @@ app.get("/hedge-volume", async (req, res) => {
       futuresHedgeVolumeUSDT: Number(futuresVolume.toFixed(2))
     });
 
+    console.log(res.data);
+
   } catch (e) {
     res.status(500).json({ error: "proxy_exception", message: String(e) });
   }
@@ -216,3 +220,11 @@ app.listen(PORT, () => {
 
 
 
+const res = await axios.get("/hedge-volume", {
+  params: { date: "2025-01-01" },
+  headers: {
+    Authorization: "Bearer YOUR_TOKEN"
+  }
+});
+
+console.log(res.data);
