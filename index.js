@@ -1,13 +1,13 @@
+import "dotenv/config";
 import express from "express";
 import crypto from "crypto";
 import axios from "axios";
 
-
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const PROXY_API_KEY      = process.env.PROXY_API_KEY || "";
-const BINANCE_API_KEY    = process.env.BINANCE_API_KEY || "";
+const PROXY_API_KEY = process.env.PROXY_API_KEY || "";
+const BINANCE_API_KEY = process.env.BINANCE_API_KEY || "";
 const BINANCE_API_SECRET = process.env.BINANCE_API_SECRET || "";
 
 // =====================
@@ -40,9 +40,23 @@ function hmac(message, secret) {
   return crypto.createHmac("sha256", secret).update(message).digest("hex");
 }
 
-function getDayRangeUTC(dateStr) {
-  const start = new Date(dateStr + "T00:00:00Z").getTime();
-  const end   = new Date(dateStr + "T23:59:59Z").getTime();
+function getDayRange(dateStr) {
+  // Interpret `dateStr` as a date in configured timezone and return
+  // UTC epoch ms for start/end of that local day. Default is Malaysia (UTC+8).
+  const tzOffsetHours = Number(process.env.TIMEZONE_OFFSET_HOURS ?? 8);
+  const sign = tzOffsetHours >= 0 ? "+" : "-";
+  const absOffset = Math.abs(tzOffsetHours);
+  const hh = String(Math.floor(absOffset)).padStart(2, "0");
+  const mm = String(
+    Math.round((absOffset - Math.floor(absOffset)) * 60)
+  ).padStart(2, "0");
+  const offsetStr = `${sign}${hh}:${mm}`;
+
+  const startIso = `${dateStr}T00:00:00${offsetStr}`;
+  const endIso = `${dateStr}T23:59:59${offsetStr}`;
+
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
   return { start, end };
 }
 
@@ -54,11 +68,14 @@ app.get("/price", async (req, res) => {
   try {
     const symbol = (req.query.symbol || "BNBUSDT").toUpperCase();
     const r = await fetch(
-      `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`
+      `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(
+        symbol
+      )}`
     );
     const txt = await r.text();
     const data = JSON.parse(txt);
-    if (!r.ok) return res.status(r.status).json({ error: "binance_error", data });
+    if (!r.ok)
+      return res.status(r.status).json({ error: "binance_error", data });
     res.json({ type: "spot", symbol, price: Number(data.price) });
   } catch (e) {
     res.status(500).json({ error: "proxy_exception", message: String(e) });
@@ -73,11 +90,14 @@ app.get("/futures-price", async (req, res) => {
   try {
     const symbol = (req.query.symbol || "BNBUSDT").toUpperCase();
     const r = await fetch(
-      `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${encodeURIComponent(symbol)}`
+      `https://fapi.binance.com/fapi/v1/ticker/price?symbol=${encodeURIComponent(
+        symbol
+      )}`
     );
     const txt = await r.text();
     const data = JSON.parse(txt);
-    if (!r.ok) return res.status(r.status).json({ error: "binance_error", data });
+    if (!r.ok)
+      return res.status(r.status).json({ error: "binance_error", data });
     res.json({ type: "futures", symbol, price: Number(data.price) });
   } catch (e) {
     res.status(500).json({ error: "proxy_exception", message: String(e) });
@@ -102,9 +122,13 @@ app.get("/balance", async (req, res) => {
     );
 
     const data = await r.json();
-    if (!r.ok) return res.status(r.status).json({ error: "binance_error", data });
+    if (!r.ok)
+      return res.status(r.status).json({ error: "binance_error", data });
 
-    const bnb = (data.balances || []).find(b => b.asset === "BNB") || { free: "0", locked: "0" };
+    const bnb = (data.balances || []).find((b) => b.asset === "BNB") || {
+      free: "0",
+      locked: "0",
+    };
     const free = Number(bnb.free || 0);
     const locked = Number(bnb.locked || 0);
 
@@ -132,7 +156,8 @@ app.get("/futures-balance", async (req, res) => {
     );
 
     const data = await r.json();
-    if (!r.ok) return res.status(r.status).json({ error: "binance_error", data });
+    if (!r.ok)
+      return res.status(r.status).json({ error: "binance_error", data });
     res.json({ balances: data });
   } catch (e) {
     res.status(500).json({ error: "proxy_exception", message: String(e) });
@@ -151,7 +176,7 @@ app.get("/hedge-volume", async (req, res) => {
     const date = req.query.date;
     if (!date) return res.status(400).json({ error: "missing_date" });
 
-    const { start, end } = getDayRangeUTC(date);
+    const { start, end } = getDayRange(date);
 
     // -------- SPOT TRADES --------
     const spotQs = `startTime=${start}&endTime=${end}&timestamp=${Date.now()}`;
@@ -180,6 +205,7 @@ app.get("/hedge-volume", async (req, res) => {
     );
 
     const futTrades = await futResp.json();
+    console.log(futTrades);
     let futuresVolume = 0;
     if (Array.isArray(futTrades)) {
       for (const t of futTrades) {
@@ -190,11 +216,8 @@ app.get("/hedge-volume", async (req, res) => {
     res.json({
       date,
       spotHedgeVolumeUSDT: Number(spotVolume.toFixed(2)),
-      futuresHedgeVolumeUSDT: Number(futuresVolume.toFixed(2))
+      futuresHedgeVolumeUSDT: Number(futuresVolume.toFixed(2)),
     });
-
-    console.log(res.data);
-
   } catch (e) {
     res.status(500).json({ error: "proxy_exception", message: String(e) });
   }
@@ -209,8 +232,8 @@ app.get("/", (req, res) => {
       "/futures-price",
       "/balance",
       "/futures-balance",
-      "/hedge-volume?date=YYYY-MM-DD"
-    ]
+      "/hedge-volume?date=YYYY-MM-DD",
+    ],
   });
 });
 
@@ -218,13 +241,18 @@ app.listen(PORT, () => {
   console.log("BNB fly proxy listening on", PORT);
 });
 
+// const BASE_URL = process.env.API_BASE_URL || `http://localhost:${PORT}`;
 
+// try {
+//   const res = await axios.get(`${BASE_URL}/hedge-volume`, {
+//     params: { date: "2025-12-23" },
+//     headers: {
+//       Authorization: "Bearer YOUR_TOKEN",
+//       "X-Proxy-Key": PROXY_API_KEY || "YOUR_PROXY_KEY",
+//     },
+//   });
 
-const res = await axios.get("/hedge-volume", {
-  params: { date: "2025-01-01" },
-  headers: {
-    Authorization: "Bearer YOUR_TOKEN"
-  }
-});
-
-console.log(res.data);
+//   console.log(res.data);
+// } catch (e) {
+//   console.error("Sample request failed:", e.message || e);
+// }
