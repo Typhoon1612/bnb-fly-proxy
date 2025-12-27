@@ -257,9 +257,13 @@ async function keepAlivePing() {
     console.log(`keepAlive: pinged ${SELF_PING_URL} -> ${res.status}`);
   } catch (err) {
     if (err && err.response) {
-      console.warn(`keepAlive: ping ${SELF_PING_URL} returned ${err.response.status}`);
+      console.warn(
+        `keepAlive: ping ${SELF_PING_URL} returned ${err.response.status}`
+      );
     } else {
-      console.warn(`keepAlive: ping ${SELF_PING_URL} failed: ${err.message || err}`);
+      console.warn(
+        `keepAlive: ping ${SELF_PING_URL} failed: ${err.message || err}`
+      );
     }
   }
 }
