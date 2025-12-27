@@ -241,6 +241,36 @@ app.listen(PORT, () => {
   console.log("BNB fly proxy listening on", PORT);
 });
 
+// =====================
+// Keep-alive ping (to prevent Render from sleeping)
+// Configure the target URL with SELF_PING_URL (recommended). Falls back
+// to `http://localhost:${PORT}` when not set. Disable by setting
+// KEEP_ALIVE=false.
+const KEEP_ALIVE = (process.env.KEEP_ALIVE || "true") !== "false";
+const SELF_PING_URL = process.env.SELF_PING_URL || `http://localhost:${PORT}`;
+const PING_INTERVAL_MS = Number(process.env.PING_INTERVAL_MS) || 14 * 60 * 1000; // 14 minutes
+
+async function keepAlivePing() {
+  if (!KEEP_ALIVE) return;
+  try {
+    const res = await axios.get(SELF_PING_URL, { timeout: 10_000 });
+    console.log(`keepAlive: pinged ${SELF_PING_URL} -> ${res.status}`);
+  } catch (err) {
+    if (err && err.response) {
+      console.warn(`keepAlive: ping ${SELF_PING_URL} returned ${err.response.status}`);
+    } else {
+      console.warn(`keepAlive: ping ${SELF_PING_URL} failed: ${err.message || err}`);
+    }
+  }
+}
+
+// Start immediate ping and then schedule recurring pings every 14 minutes
+if (KEEP_ALIVE) {
+  // initial ping after a brief delay to allow server to fully start
+  setTimeout(keepAlivePing, 5_000);
+  setInterval(keepAlivePing, PING_INTERVAL_MS);
+}
+
 // const BASE_URL = process.env.API_BASE_URL || `http://localhost:${PORT}`;
 
 // try {
