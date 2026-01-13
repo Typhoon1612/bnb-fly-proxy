@@ -19,7 +19,7 @@ Deploy on Render:
 5) Deploy!
 
 Then test:
-https://<your-service>.onrender.com/price?symbol=BNBUSDT&key=<your-strong-secret>
+https://bnb-fly-proxy.onrender.com/price?symbol=BNBUSDT&key=<your-strong-secret>
 
 To run locally:
 1) Set environment variables:
